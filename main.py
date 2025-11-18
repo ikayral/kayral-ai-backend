@@ -6,10 +6,15 @@ import os
 
 app = FastAPI()
 
-# CORS – şimdilik her yerden izin ver (test için)
+# CORS
+origins = [
+    "https://ibrahimkayral.com",
+    "https://www.ibrahimkayral.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # İstersen sonra sadece ibrahimkayral.com yaparız
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
