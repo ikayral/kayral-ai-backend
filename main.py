@@ -1,61 +1,50 @@
-<div id="kayral-ai-container" style="max-width: 700px; margin: 0 auto;">
-  <h2>Kayral AI – Sağlık Yönetimi Asistanı (Beta)</h2>
-  <p>
-    Aşağıya sağlık yönetimi, hasta güvenliği, kalite ve liderlik ile ilgili sorunuzu yazın.
-    Klinik tanı/tedavi sorularına cevap verilmez.
-  </p>
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from openai import OpenAI
+import os
 
-  <textarea id="kayral-question" rows="5" style="width: 100%; padding: 10px;"
-    placeholder="Örneğin: Yoğun bakımda hasta güvenliğini artırmak için 5 somut adım önerir misin?"></textarea>
+app = FastAPI()
 
-  <button id="kayral-send" style="margin-top: 10px; padding: 8px 16px;">
-    Soruyu Gönder
-  </button>
+# CORS – şimdilik her yerden izin ver (test için)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],      # İstersen sonra sadece ibrahimkayral.com yaparız
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-  <div id="kayral-loading" style="margin-top: 10px; display: none;">
-    Yanıt hazırlanıyor, lütfen bekleyin...
-  </div>
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-  <div id="kayral-answer" style="margin-top: 20px; white-space: pre-wrap;"></div>
-</div>
+class ChatRequest(BaseModel):
+    message: str
 
-<script>
-  const BACKEND_URL = "https://kayral-ai-backend-1.onrender.com/ask";
+SYSTEM_PROMPT = """
+Sen, Doç. Dr. İbrahim H. Kayral’ın asistanısın.
+Uzmanlık alanların: sağlık yönetimi, hasta güvenliği, kalite, akreditasyon,
+liderlik, motivasyon, strateji ve girişimciliktir.
+Yanıtlarında:
+- Bilimsel ve güncel kal,
+- Türkçe’yi düzgün ve anlaşılır kullan,
+- Klinik tanı ve tedavi önermeden, sistem ve yönetim odaklı yanıt ver.
+"""
 
-  document.getElementById("kayral-send").addEventListener("click", async () => {
-    const questionEl = document.getElementById("kayral-question");
-    const answerEl = document.getElementById("kayral-answer");
-    const loadingEl = document.getElementById("kayral-loading");
+@app.get("/")
+def read_root():
+    return {"message": "Kayral AI Backend çalışıyor hocam!"}
 
-    const question = questionEl.value.trim();
-    if (!question) {
-      alert("Lütfen önce bir soru yazın.");
-      return;
-    }
-
-    answerEl.textContent = "";
-    loadingEl.style.display = "block";
-
-    try {
-      const response = await fetch(BACKEND_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: question }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Sunucudan geçerli bir yanıt alınamadı.");
-      }
-
-      const data = await response.json();
-      answerEl.textContent = data.answer || "Yanıt alınamadı.";
-    } catch (err) {
-      console.error(err);
-      answerEl.textContent = "Bir hata oluştu. Lütfen daha sonra tekrar deneyin.";
-    } finally {
-      loadingEl.style.display = "none";
-    }
-  });
-</script>
+@app.post("/ask")
+async def ask(req: ChatRequest):
+    try:
+        response = client.responses.create(
+            model="gpt-4o-mini",
+            input=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": req.message},
+            ],
+        )
+        answer = response.output_text
+        return {"answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
